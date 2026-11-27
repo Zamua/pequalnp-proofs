@@ -1260,10 +1260,10 @@ def Rects (e : Nat) (D : Sq r) := ∃ X Y : Fin e → Finset (Fin r), ∀ a b,
   D a b=bit (decide ((Finset.univ.filter (fun j : Fin e => a ∈ X j ∧ b ∈ Y j)).card % 2=1))
 
 theorem parity (s : Finset α) (p : α → Prop) [DecidablePred p] :
-    bit (decide ((s.filter p).card%2=1)) = ∑ k∈s, (if p k then 1 else 0 : F) := by
+    bit (decide ((s.filter p).card % 2=1)) = ∑ k∈s, (if p k then 1 else 0 : F) := by
   rw [Finset.sum_boole]
   generalize (s.filter p).card=l
-  have e : (l : F)=(l%2 : Nat) := (ZMod.natCast_mod l 2).symm
+  have e : (l : F)=(l % 2 : Nat) := (ZMod.natCast_mod l 2).symm
   rw [e]
   rcases Nat.mod_two_eq_zero_or_one l with h|h <;> simp [h,bit]
 
@@ -1304,7 +1304,7 @@ def errs (rows : Panel k r n) (cols : Panel k r m)
     (P T : Fin n → Fin m → Bool) (e : Nat) :=
   ∃ X Y : Fin e → Finset (Fin r), ∀ a b,
     xor (P (rows (Fin.last (k+1),a)) (cols (0,b))) (T (rows (Fin.last (k+1),a)) (cols (0,b))) =
-      decide ((Finset.univ.filter (fun j : Fin e => a∈X j ∧ b∈Y j)).card%2=1)
+      decide ((Finset.univ.filter (fun j : Fin e => a∈X j ∧ b∈Y j)).card % 2=1)
 
 theorem errRank (rows : Panel k r n) (cols : Panel k r m) (u : Fin n) (v : Fin m)
     (P T : Fin n → Fin m → Bool) (col : ∀ a,P a v=T a v) (row : ∀ b,P u b=T u b) :
