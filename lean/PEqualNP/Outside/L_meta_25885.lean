@@ -292,7 +292,7 @@ theorem block_sum (c : Coord K s) (r : Fin k → Bool) (x : K) (hs : 0<s) (b : N
 
 theorem horner_result (c : Coord K s) (r : Fin k → Bool) (x : K) (hk : 0<k) (hs : 0<s) :
     horner c r x 0 ((k-1)/s) =
-      ∑ j : Fin k, if r j then basis c ⟨j.val%s,Nat.mod_lt _ hs⟩*x^(j.val/s) else 0 := by
+      ∑ j : Fin k, if r j then basis c ⟨j.val % s,Nat.mod_lt _ hs⟩*x^(j.val/s) else 0 := by
   let q := (k-1)/s
   have blocks (h : ℕ) : (∑ b ∈ Finset.range h, block c r b*x^b) =
       ∑ j ∈ Finset.range (h*s), extended c r x hs j := by
