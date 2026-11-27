@@ -1,6 +1,6 @@
 import PEqualNP.Defs
 
-namespace Packed25885
+namespace PEqualNP.Outside.L_meta_25885
 open PEqualNP.CircuitLowerBounds PEqualNP.MetaComplexity.NestedCover
 variable {X : Type}
 abbrev Signal (X : Type) := X → Bool
@@ -146,9 +146,6 @@ theorem many {T : Tape X} (n c : ℕ) (f : Fin n → Signal X)
     obtain ⟨gs,U,ch,le,w⟩ := each M sub (Fin.last n)
     exact ⟨gs,U,ch,le,Fin.lastCases w (fun i => ch.sub (hh i))⟩
 
-end Packed25885
-
-namespace Packed25885
 variable {X : Type}
 abbrev F := ZMod 2
 def enc (f : X → F) : Signal X := fun x => decide (f x = 1)
@@ -237,9 +234,6 @@ theorem lookupG (T : Tape X) (t : Nat) (a : X → Fin t → Bool) (f : (Fin t �
     rw [pow_succ]
     have : 0<2^t := Nat.two_pow_pos _
     omega
-end Packed25885
-
-namespace Packed25885
 variable {K : Type} [Field K] [Algebra F K] {s k : ℕ}
 abbrev Coord (K : Type) [Field K] [Algebra F K] (s : Nat) := K ≃ₗ[F] (Fin s → F)
 def basis (c : Coord K s) (i : Fin s) : K := c.symm (fun j => if j=i then 1 else 0)
@@ -324,9 +318,6 @@ theorem horner_result (c : Coord K s) (r : Fin k → Bool) (x : K) (hk : 0<k) (h
   apply Finset.sum_congr rfl
   intro i _
   simp [extended,i.isLt]
-end Packed25885
-
-namespace Packed25885
 variable {K : Type} [Field K] [Algebra F K] {k s t : Nat}
 structure Input (k s t : Nat) where
   row : Fin k → Bool
@@ -422,9 +413,6 @@ theorem hornerG (c : Coord K s) (T : Tape (Input k s t)) (hs : 0<s)
     apply ret.weak _ (fun _ h => h)
     have e : s+4*(s-1)+4 ≤ 8*s := by omega
     exact (Nat.mul_le_mul_left s e).trans (by rw [pow_two]; nlinarith)
-end Packed25885
-
-namespace Packed25885
 open PEqualNP.CircuitLowerBounds PEqualNP.MetaComplexity.NestedCover
 variable {K : Type} [Field K] [Algebra F K] {k s t : Nat}
 def initial (k s t : Nat) : Tape (Input k s t) :=
@@ -492,9 +480,9 @@ theorem assembled (c : Coord K s) (label : (Fin t → Bool) → Fin s → F) (hs
     change (C.wires _).getD i.val false = _
     change C.wires _ = _ at hh
     rw [hh,get_signal,eq]
-end Packed25885
+end PEqualNP.Outside.L_meta_25885
 
-open Packed25885
+open PEqualNP.Outside.L_meta_25885
 
 theorem PEqualNP.Outside.L_meta_25885 : ∀ k s t : ℕ, 0 < k → 0 < s →
   let F := ZMod 2
