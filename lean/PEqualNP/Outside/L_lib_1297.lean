@@ -367,7 +367,6 @@ theorem inverseGate {i j : Fin m} {gs : List Gate} (prior : ∀ p,val x gs p i=t
     simp [op,GateOp.eval]
     cases e : val x gs a i <;> cases d : val x gs a j <;> simp_all
 
--- At equal prefix scores every wire is monotone between the two samples.
 theorem stepOrder (x : Fin m → Finset (Fin n)) (gs : List Gate) (fan : FanInTwo ⟨gs,0⟩)
     (i j : Fin m) (sub : x i⊆x j) :
     score i (trace x gs) ≤ score j (trace x gs) ∧
