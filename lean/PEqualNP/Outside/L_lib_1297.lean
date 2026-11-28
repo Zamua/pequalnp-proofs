@@ -1,26 +1,26 @@
 import Mathlib.Tactic
 import PEqualNP.Defs
 
-namespace Phys1297
-noncomputable section
+namespace PEqualNP.Outside.L_lib_1297_aux
+section WireFacts
 open scoped Classical
 open PEqualNP.CircuitLowerBounds PEqualNP.MetaComplexity PEqualNP.MetaComplexity.NestedCover
 variable {n m : ℕ}
 abbrev Col (m : ℕ) := Fin m → Bool
-def raw (x : Fin m → Finset (Fin n)) (i : Fin m) :=
+noncomputable def raw (x : Fin m → Finset (Fin n)) (i : Fin m) :=
   List.ofFn (fun a : Fin n => decide (a ∈ x i)) ++ [false,true]
-def val (x : Fin m → Finset (Fin n)) (gs : List Gate) (p : ℕ) : Col m :=
+noncomputable def val (x : Fin m → Finset (Fin n)) (gs : List Gate) (p : ℕ) : Col m :=
   fun i => ((Circuit.mk gs 0).wires (raw x i)).getD p false
-def ix (gs : List Gate) := (List.range gs.length).filter fun j =>
+noncomputable def ix (gs : List Gate) := (List.range gs.length).filter fun j =>
   decide ((gs.getD j ⟨.or,[]⟩).op = GateOp.not)
-def trace (x : Fin m → Finset (Fin n)) (gs : List Gate) :=
+noncomputable def trace (x : Fin m → Finset (Fin n)) (gs : List Gate) :=
   (ix gs).map fun j => val x gs (n+2+j)
-def sing (x : Fin m → Finset (Fin n)) (a : Fin n) : Col m := fun i => decide (a∈x i)
-def base (x : Fin m → Finset (Fin n)) : Set (Col m) :=
+noncomputable def sing (x : Fin m → Finset (Fin n)) (a : Fin n) : Col m := fun i => decide (a∈x i)
+noncomputable def base (x : Fin m → Finset (Fin n)) : Set (Col m) :=
   {f | f=(fun _ => false) ∨ f=(fun _ => true) ∨ ∃ a, f=sing x a}
-def inv (f : Col m) : Col m := fun i => !(f i)
-def conj (f g : Col m) : Col m := fun i => f i && g i
-def disj (f g : Col m) : Col m := fun i => f i || g i
+noncomputable def inv (f : Col m) : Col m := fun i => !(f i)
+noncomputable def conj (f g : Col m) : Col m := fun i => f i && g i
+noncomputable def disj (f g : Col m) : Col m := fun i => f i || g i
 
 theorem wirelen (gs : List Gate) (u : List Bool) : ((Circuit.mk gs 0).wires u).length=u.length+gs.length := by
   induction gs using List.reverseRecOn with
@@ -88,112 +88,104 @@ theorem extendBack (gs : List Gate) (g : Gate) (h : ReadsBack (n+2) ⟨gs,0⟩)
     simpa [gateAt,List.getD_append_right _ _ _ _ (le_refl _)] using hp
 
 -- A column gives one wire value per sample. Only a physical NOT extends the trace.
-inductive Built (x : Fin m → Finset (Fin n)) : List (Col m) → ℕ → Set (Col m) → Prop where
-  | start : Built x [] 0 (base x)
-  | andGate {tr k S f g} : Built x tr k S → f∈S → g∈S → Built x tr (k+1) (insert (conj f g) S)
-  | orGate {tr k S f g} : Built x tr k S → f∈S → g∈S → Built x tr (k+1) (insert (disj f g) S)
-  | notGate {tr k S f} : Built x tr k S → f∈S → Built x (tr++[inv f]) (k+1) (insert (inv f) S)
-  | relax {tr k K S T} : Built x tr k S → k≤K → T⊆S → Built x tr K T
-
-def Real (x : Fin m → Finset (Fin n)) (tr : List (Col m)) (k : ℕ) (S : Set (Col m)) :=
+noncomputable def Built (x : Fin m → Finset (Fin n)) (tr : List (Col m)) (k : ℕ) (S : Set (Col m)) :=
   ∃ gs : List Gate, FanInTwo ⟨gs,0⟩ ∧ ReadsBack (n+2) ⟨gs,0⟩ ∧ gs.length≤k ∧ trace x gs=tr ∧
     ∀ f∈S, ∃ p<n+2+gs.length, val x gs p=f
-end
-end Phys1297
+end WireFacts
 
-namespace Phys1297
-noncomputable section
+section Compiler
 open scoped Classical
 open PEqualNP.CircuitLowerBounds PEqualNP.MetaComplexity PEqualNP.MetaComplexity.NestedCover
 variable {n m : ℕ} {x : Fin m → Finset (Fin n)} {tr : List (Col m)} {k : ℕ} {S : Set (Col m)}
 
-theorem actual (b : Built x tr k S) : Real x tr k S := by
-  induction b with
-  | start =>
-    refine ⟨[],by simp [FanInTwo],by simp [ReadsBack],by simp,rfl,?_⟩
-    intro f hf
-    rcases hf with rfl|rfl|⟨a,rfl⟩
-    · refine ⟨n,by simp,?_⟩
-      funext i
-      simp [val,Circuit.wires,raw]
-    · refine ⟨n+1,by simp,?_⟩
-      funext i
-      simp [val,Circuit.wires,raw]
-    · refine ⟨a.val,by have := a.isLt; simp; omega,?_⟩
-      funext i
-      change ((List.ofFn fun u : Fin n => decide (u∈x i)) ++ _).getD a.val false=_
-      rw [List.getD_append _ _ _ _ (by simp)]
-      simp [sing]
-  | relax _ sz sub ih =>
-    obtain ⟨gs,fan,back,le,trace,signal⟩ := ih
-    exact ⟨gs,fan,back,le.trans sz,trace,fun f hf => signal f (sub hf)⟩
-  | andGate h hf hg ih =>
-    obtain ⟨gs,fan,back,sz,ht,sig⟩ := ih
-    obtain ⟨a,ha,ea⟩ := sig _ hf
-    obtain ⟨b,hb,eb⟩ := sig _ hg
-    let g : Gate := ⟨.and,[a,b]⟩
-    refine ⟨gs++[g],?_,?_,by simpa using sz,?_,?_⟩
-    · intro j hj
-      rcases List.mem_append.mp hj with oj|nj
-      · exact fan j oj
-      · obtain rfl : j=g := List.mem_singleton.mp nj
-        simp [g]
-    · apply extendBack _ _ back
-      simp_all [g]
-    · rw [traceAdd]; simpa [g] using ht
-    · intro f mem
-      rcases mem with rfl|mem
-      · refine ⟨n+2+gs.length,by simp,?_⟩
-        funext i; rw [fresh]; simp [g,GateOp.eval,ea,eb,conj]
-      · obtain ⟨p,hp,eq⟩ := sig _ mem
-        exact ⟨p,by simp; omega,(old _ _ _ hp).trans eq⟩
-  | orGate h hf hg ih =>
-    obtain ⟨gs,fan,back,sz,ht,sig⟩ := ih
-    obtain ⟨a,ha,ea⟩ := sig _ hf
-    obtain ⟨b,hb,eb⟩ := sig _ hg
-    let g : Gate := ⟨.or,[a,b]⟩
-    refine ⟨gs++[g],?_,?_,by simpa using sz,?_,?_⟩
-    · intro j hj
-      rcases List.mem_append.mp hj with oj|nj
-      · exact fan j oj
-      · obtain rfl : j=g := List.mem_singleton.mp nj
-        simp [g]
-    · apply extendBack _ _ back
-      simp_all [g]
-    · rw [traceAdd]; simpa [g] using ht
-    · intro f mem
-      rcases mem with rfl|mem
-      · refine ⟨n+2+gs.length,by simp,?_⟩
-        funext i; rw [fresh]; simp [g,GateOp.eval,ea,eb,disj]
-      · obtain ⟨p,hp,eq⟩ := sig _ mem
-        exact ⟨p,by simp; omega,(old _ _ _ hp).trans eq⟩
-  | @notGate tr k S f h hf ih =>
-    obtain ⟨gs,fan,back,sz,ht,sig⟩ := ih
-    obtain ⟨a,ha,ea⟩ := sig _ hf
-    let g : Gate := ⟨.not,[a]⟩
-    have ev : val x (gs++[g]) (n+2+gs.length)=inv f := by
-      funext i; rw [fresh]; simp [g,GateOp.eval,ea,inv]
-    refine ⟨gs++[g],?_,?_,by simpa using sz,by simp [traceAdd,g,ht,ev],?_⟩
-    · intro j hj
-      rcases List.mem_append.mp hj with old|new
-      · exact fan j old
-      · obtain rfl : j=g := List.mem_singleton.mp new
-        simp [g]
-    · apply extendBack _ _ back; simpa [g] using ha
-    · intro f mem
-      rcases mem with rfl|mem
-      · exact ⟨_,by simp,ev⟩
-      · obtain ⟨p,hp,eq⟩ := sig _ mem
-        exact ⟨p,by simp; omega,(old _ _ _ hp).trans eq⟩
-end
-end Phys1297
+theorem Built.start : Built x [] 0 (base x) := by
+  refine ⟨[],by simp [FanInTwo],by simp [ReadsBack],by simp,rfl,?_⟩
+  intro f hf
+  rcases hf with rfl|rfl|⟨a,rfl⟩
+  · refine ⟨n,by simp,?_⟩
+    funext i
+    simp [val,Circuit.wires,raw]
+  · refine ⟨n+1,by simp,?_⟩
+    funext i
+    simp [val,Circuit.wires,raw]
+  · refine ⟨a.val,by have := a.isLt; simp; omega,?_⟩
+    funext i
+    change ((List.ofFn fun u : Fin n => decide (u∈x i)) ++ _).getD a.val false=_
+    rw [List.getD_append _ _ _ _ (by simp)]
+    simp [sing]
 
-namespace Phys1297
-noncomputable section
+theorem Built.relax {K : ℕ} {T : Set (Col m)} (ih : Built x tr k S) (sz : k≤K) (sub : T⊆S) : Built x tr K T := by
+  obtain ⟨gs,fan,back,le,trace,signal⟩ := ih
+  exact ⟨gs,fan,back,le.trans sz,trace,fun f hf => signal f (sub hf)⟩
+
+theorem Built.andGate {f z : Col m} (ih : Built x tr k S) (hf : f∈S) (hg : z∈S) : Built x tr (k+1) (insert (conj f z) S) := by
+  obtain ⟨gs,fan,back,sz,ht,sig⟩ := ih
+  obtain ⟨a,ha,ea⟩ := sig _ hf
+  obtain ⟨b,hb,eb⟩ := sig _ hg
+  let g : Gate := ⟨.and,[a,b]⟩
+  refine ⟨gs++[g],?_,?_,by simpa using sz,?_,?_⟩
+  · intro j hj
+    rcases List.mem_append.mp hj with oj|nj
+    · exact fan j oj
+    · obtain rfl : j=g := List.mem_singleton.mp nj
+      simp [g]
+  · apply extendBack _ _ back
+    simp_all [g]
+  · rw [traceAdd]; simpa [g] using ht
+  · intro f mem
+    rcases mem with rfl|mem
+    · refine ⟨n+2+gs.length,by simp,?_⟩
+      funext i; rw [fresh]; simp [g,GateOp.eval,ea,eb,conj]
+    · obtain ⟨p,hp,eq⟩ := sig _ mem
+      exact ⟨p,by simp; omega,(old _ _ _ hp).trans eq⟩
+
+theorem Built.orGate {f z : Col m} (ih : Built x tr k S) (hf : f∈S) (hg : z∈S) : Built x tr (k+1) (insert (disj f z) S) := by
+  obtain ⟨gs,fan,back,sz,ht,sig⟩ := ih
+  obtain ⟨a,ha,ea⟩ := sig _ hf
+  obtain ⟨b,hb,eb⟩ := sig _ hg
+  let g : Gate := ⟨.or,[a,b]⟩
+  refine ⟨gs++[g],?_,?_,by simpa using sz,?_,?_⟩
+  · intro j hj
+    rcases List.mem_append.mp hj with oj|nj
+    · exact fan j oj
+    · obtain rfl : j=g := List.mem_singleton.mp nj
+      simp [g]
+  · apply extendBack _ _ back
+    simp_all [g]
+  · rw [traceAdd]; simpa [g] using ht
+  · intro f mem
+    rcases mem with rfl|mem
+    · refine ⟨n+2+gs.length,by simp,?_⟩
+      funext i; rw [fresh]; simp [g,GateOp.eval,ea,eb,disj]
+    · obtain ⟨p,hp,eq⟩ := sig _ mem
+      exact ⟨p,by simp; omega,(old _ _ _ hp).trans eq⟩
+
+theorem Built.notGate {f : Col m} (ih : Built x tr k S) (hf : f∈S) : Built x (tr++[inv f]) (k+1) (insert (inv f) S) := by
+  obtain ⟨gs,fan,back,sz,ht,sig⟩ := ih
+  obtain ⟨a,ha,ea⟩ := sig _ hf
+  let g : Gate := ⟨.not,[a]⟩
+  have ev : val x (gs++[g]) (n+2+gs.length)=inv f := by
+    funext i; rw [fresh]; simp [g,GateOp.eval,ea,inv]
+  refine ⟨gs++[g],?_,?_,by simpa using sz,by simp [traceAdd,g,ht,ev],?_⟩
+  · intro j hj
+    rcases List.mem_append.mp hj with old|new
+    · exact fan j old
+    · obtain rfl : j=g := List.mem_singleton.mp new
+      simp [g]
+  · apply extendBack _ _ back; simpa [g] using ha
+  · intro f mem
+    rcases mem with rfl|mem
+    · exact ⟨_,by simp,ev⟩
+    · obtain ⟨p,hp,eq⟩ := sig _ mem
+      exact ⟨p,by simp; omega,(old _ _ _ hp).trans eq⟩
+
+end Compiler
+
+section Construction
 open scoped Classical
 variable {n m : ℕ} {x : Fin m → Finset (Fin n)} {tr : List (Col m)} {k : ℕ} {S : Set (Col m)}
 
-def Grow (x : Fin m → Finset (Fin n)) (tr : List (Col m)) (k : ℕ) (S : Set (Col m))
+noncomputable def Grow (x : Fin m → Finset (Fin n)) (tr : List (Col m)) (k : ℕ) (S : Set (Col m))
     (b : ℕ) (f : Col m) := ∃ T, Built x tr (k+b) T ∧ S⊆T ∧ f∈T
 
 theorem batch {ι : Type} (s : Finset ι) (F : ι → Col m) (b : ℕ) (H : Built x tr k S)
@@ -238,9 +230,9 @@ theorem anyFold {ι : Type} (s : Finset ι) (F : ι → Col m) (H : Built x tr k
     simp [disj, Bool.decide_or]
 
 -- A surviving sample must be contained in the current mask and agree on the processed bits.
-def indicator (x : Fin m → Finset (Fin n)) (v : Fin m → ℕ) (i : Fin m) : Col m :=
+noncomputable def indicator (x : Fin m → Finset (Fin n)) (v : Fin m → ℕ) (i : Fin m) : Col m :=
   fun j => decide (x i⊆x j ∧ v i=v j)
-def hist (r : ℕ) (v : Fin m → ℕ) : List (Col m) :=
+noncomputable def hist (r : ℕ) (v : Fin m → ℕ) : List (Col m) :=
   List.ofFn fun b : Fin r => fun i => !(v i).testBit (r-1-b.val)
 
 theorem hist_succ (r : ℕ) (v : Fin m → ℕ) :
@@ -318,18 +310,16 @@ theorem stages (x : Fin m → Finset (Fin n)) (r : ℕ) (v : Fin m → ℕ)
     simp only [Finset.card_univ,Fintype.card_fin,mul_one]
     simp only [Nat.mul_add,Nat.mul_succ] at *
     omega
-end
-end Phys1297
+end Construction
 
-namespace Phys1297
-noncomputable section
+section TraceOrder
 open scoped Classical
 open PEqualNP.CircuitLowerBounds PEqualNP.MetaComplexity
 variable {n m : ℕ} {x : Fin m → Finset (Fin n)}
-def decode (i : Fin m) : List (Col m) → ℕ
+noncomputable def decode (i : Fin m) : List (Col m) → ℕ
   | [] => 0
   | a::as => 2*decode i as + if a i then 0 else 1
-def score (i : Fin m) (word : List (Col m)) := decode i word.reverse
+noncomputable def score (i : Fin m) (word : List (Col m)) := decode i word.reverse
 theorem snocScore (i : Fin m) (l : List (Col m)) (f : Col m) :
     score i (l++[f])=2*score i l + if f i then 0 else 1 := by simp [score,decode]
 
@@ -411,17 +401,15 @@ theorem stepOrder (x : Fin m → Finset (Fin n)) (gs : List Gate) (fan : FanInTw
       by_cases he : a=n+2+gs.length
       · subst a; exact ordinary (transfer eq) g ao
       · rw [other x gs g he]; exact transfer eq _
-end
-end Phys1297
+end TraceOrder
 
-namespace Phys1297
-noncomputable section
+section Characterization
 open scoped Classical
 open PEqualNP.CircuitLowerBounds PEqualNP.MetaComplexity PEqualNP.MetaComplexity.NestedCover
 variable {n m t r : ℕ} (x : Fin m → Finset (Fin n)) (v : Fin m → ℕ) (w : Fin m → Fin t → Bool)
 
-def OK := ∀ i j, x i ⊆ x j → v i ≤ v j ∧ (v i=v j → ∀ a,w i a=true → w j a=true)
-def Fits (r : ℕ) (C : Circuit) (tap : Fin t → ℕ) := FanInTwo C ∧ ReadsBack (n+2) C ∧
+noncomputable def OK := ∀ i j, x i ⊆ x j → v i ≤ v j ∧ (v i=v j → ∀ a,w i a=true → w j a=true)
+noncomputable def Fits (r : ℕ) (C : Circuit) (tap : Fin t → ℕ) := FanInTwo C ∧ ReadsBack (n+2) C ∧
   C.output<n+2+C.size ∧ PEqualNP.NotBracket.notCount C=r ∧ (ix C.gates).length=r ∧
   (∀ a,tap a<n+2+C.size) ∧ (∀ i a,val x C.gates (tap a) i=w i a) ∧
   ∀ i (b : Fin r),val x C.gates (n+2+(ix C.gates).getD b.val C.size) i= !(v i).testBit (r-1-b.val)
@@ -479,7 +467,7 @@ theorem sufficient (cap : ∀ i,v i<2^r) (ok : OK x v w) :
     constructor
     · intro h; exact ⟨j,h,Finset.Subset.rfl,rfl⟩
     · rintro ⟨i,hit,sub,same⟩; exact (ok i j sub).2 same a hit)
-  obtain ⟨gs,fan,back,sz,ht,wire⟩ := actual hT
+  obtain ⟨gs,fan,back,sz,ht,wire⟩ := hT
   choose tap valid data using fun a => wire _ (haveTap a (Finset.mem_univ _))
   have len := congrArg List.length ht
   simp [trace,hist] at len
@@ -494,10 +482,11 @@ theorem sufficient (cap : ∀ i,v i<2^r) (ok : OK x v w) :
     exact congrFun e i
   · change gs.length≤_
     simpa [Nat.mul_add,Nat.add_assoc,Nat.add_comm,Nat.add_left_comm,Nat.mul_comm] using sz
-end
-end Phys1297
+end Characterization
 
-open Phys1297
+end PEqualNP.Outside.L_lib_1297_aux
+
+open PEqualNP.Outside.L_lib_1297_aux
 
 theorem PEqualNP.Outside.L_lib_1297 : letI : ∀ P : Prop, Decidable P := Classical.propDecidable
 ∀ (n m t r : Nat) (x : Fin m → Finset (Fin n)) (level : Fin m → Fin (2^r))
